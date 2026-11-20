@@ -1,0 +1,24 @@
+*.iml
+.gradle
+/local.properties
+/.idea/caches
+/.idea/libraries
+/.idea/modules.xml
+/.idea/workspace.xml
+/.idea/navEditor.xml
+/.idea/assetWizardSettings.xml
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+
+# --- added for MindTrack ---
+# Kotlin compiler caches
+.kotlin/
+# Our local backup copies of old code (not part of the app)
+/_old_ui_backup/
+# Signing keys and secrets, if ever added
+*.jks
+*.keystore
