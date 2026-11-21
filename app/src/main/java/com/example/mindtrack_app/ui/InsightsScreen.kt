@@ -1,5 +1,20 @@
 package com.example.mindtrack_app.ui
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
@@ -75,22 +90,84 @@ fun InsightsScreen(vm: MindTrackViewModel, contentPadding: PaddingValues) {
 
 // ======================= MOOD =======================
 
-/** Five tappable faces. Used on Home and Insights. */
+/**
+ * Five tappable faces. The chosen face bounces, sparkles burst for good days, and a short,
+ * kind reaction appears (with a breather offered on harder days). Used on Home and Insights.
+ */
 @Composable
-fun MoodPicker(selected: Int?, onPick: (Int) -> Unit) {
+fun MoodPicker(selected: Int?, onBreathe: (() -> Unit)? = null, onPick: (Int) -> Unit) {
     val cs = MaterialTheme.colorScheme
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-        (1..5).forEach { m ->
-            val isSel = selected == m
-            val bg by animateColorAsState(if (isSel) cs.primaryContainer else cs.surfaceContainer, label = "mood")
-            Surface(
-                onClick = { onPick(m) },
-                shape = CircleShape,
-                color = bg,
-                border = if (isSel) BorderStroke(2.dp, cs.primary) else null,
-                modifier = Modifier.size(54.dp).semantics { contentDescription = "Mood: ${Moods.label(m)}" + if (isSel) ", selected" else "" },
-            ) {
-                Box(contentAlignment = Alignment.Center) { Text(Moods.face(m), fontSize = 26.sp) }
+    val haptic = LocalHapticFeedback.current
+    var burst by remember { mutableIntStateOf(0) }
+    var justPicked by remember { mutableStateOf<Int?>(null) }
+    val sparkleColors = listOf(cs.primary, cs.secondary, cs.tertiary, Color(0xFFFFC107))
+    Column {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            (1..5).forEach { m ->
+                val isSel = selected == m
+                val bg by animateColorAsState(if (isSel) cs.primaryContainer else cs.surfaceContainer, label = "mood")
+                val bounce = remember { Animatable(1f) }
+                LaunchedEffect(burst) {
+                    if (burst > 0 && justPicked == m) {
+                        bounce.snapTo(0.7f)
+                        bounce.animateTo(1f, spring(dampingRatio = 0.35f, stiffness = 300f))
+                    }
+                }
+                val emojiScale by animateFloatAsState(if (isSel) 1.15f else 1f, spring(dampingRatio = 0.5f), label = "emoji")
+                Box(contentAlignment = Alignment.Center) {
+                    if (justPicked == m && m >= 3) {
+                        SparkleBurst(trigger = burst, colors = sparkleColors, modifier = Modifier.size(54.dp), particles = if (m >= 4) 16 else 8)
+                    }
+                    Surface(
+                        onClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            justPicked = m
+                            burst++
+                            onPick(m)
+                        },
+                        shape = CircleShape,
+                        color = bg,
+                        border = if (isSel) BorderStroke(2.dp, cs.primary) else null,
+                        modifier = Modifier.size(54.dp)
+                            .graphicsLayer { scaleX = bounce.value; scaleY = bounce.value }
+                            .semantics { contentDescription = "Mood: ${Moods.label(m)}" + if (isSel) ", selected" else "" },
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Text(Moods.face(m), fontSize = 26.sp, modifier = Modifier.graphicsLayer { scaleX = emojiScale; scaleY = emojiScale })
+                        }
+                    }
+                }
+            }
+        }
+        AnimatedVisibility(
+            visible = justPicked != null,
+            enter = fadeIn() + expandVertically(),
+            exit = fadeOut() + shrinkVertically(),
+        ) {
+            justPicked?.let { MoodReaction(it, onBreathe) }
+        }
+    }
+}
+
+/** A short, kind response to the mood just logged. */
+@Composable
+private fun MoodReaction(mood: Int, onBreathe: (() -> Unit)?) {
+    val cs = MaterialTheme.colorScheme
+    val text = when (mood) {
+        5 -> "✨ Love that! Notice what made today great, and do more of it."
+        4 -> "🙂 Nice. Glad today is going well."
+        3 -> "🌱 Steady is good. Small things still count."
+        2 -> "💛 Thanks for being honest. Be gentle with yourself today."
+        else -> "🤍 Sorry today feels hard. You don't have to handle it alone."
+    }
+    Surface(color = cs.surfaceContainer, shape = MaterialTheme.shapes.medium, modifier = Modifier.fillMaxWidth().padding(top = 12.dp)) {
+        Column(Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
+            Text(text, style = MaterialTheme.typography.bodyMedium)
+            if (mood <= 2 && onBreathe != null) {
+                TextButton(onClick = onBreathe, contentPadding = PaddingValues(0.dp)) { Text("Try a 1-minute breather") }
+            }
+            if (mood == 1) {
+                Text("Support lines are always in the ⋮ menu → Get support now.", style = MaterialTheme.typography.labelMedium, color = cs.onSurfaceVariant)
             }
         }
     }
@@ -104,7 +181,7 @@ private fun MoodCard(vm: MindTrackViewModel) {
     AppCard {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text("How are you feeling today?", style = MaterialTheme.typography.titleMedium)
-            MoodPicker(today?.mood) { vm.logMood(it, note) }
+            MoodPicker(today?.mood, onBreathe = { vm.showBreather = true }) { vm.logMood(it, note) }
             if (today != null) {
                 Text(
                     "Logged: ${Moods.label(today.mood)} ${Moods.face(today.mood)}. Tap another face to change it.",

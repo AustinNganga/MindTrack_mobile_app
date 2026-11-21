@@ -36,6 +36,7 @@ fun MainTopBar(
     onSettings: () -> Unit,
     onSupport: () -> Unit,
     onAbout: () -> Unit,
+    onBreathe: () -> Unit = {},
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     val cs = MaterialTheme.colorScheme
@@ -53,6 +54,7 @@ fun MainTopBar(
                 DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                     MenuRow("New check-in", MtIcons.Sparkle) { menuOpen = false; onNewCheckIn() }
                     MenuRow("Log today's mood", MtIcons.Heart) { menuOpen = false; onLogMood() }
+                    MenuRow("1-minute breather", MtIcons.Moon) { menuOpen = false; onBreathe() }
                     MenuRow("Reminders & app lock", MtIcons.Timer) { menuOpen = false; onSettings() }
                     HorizontalDivider()
                     MenuRow("Get support now", MtIcons.Call) { menuOpen = false; onSupport() }

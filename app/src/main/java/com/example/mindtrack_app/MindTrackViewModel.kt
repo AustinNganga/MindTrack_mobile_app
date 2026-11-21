@@ -95,6 +95,20 @@ class MindTrackViewModel(app: Application) : AndroidViewModel(app) {
         private set
     var lockMessage by mutableStateOf<String?>(null)
 
+    /** True while the 1-minute breathing exercise is open. */
+    var showBreather by mutableStateOf(false)
+
+    /** Days in a row with a mood logged, ending today (or yesterday, so the streak isn't "lost" before today's log). */
+    val moodStreak: Int
+        get() {
+            val dates = moods.map { it.date }.toHashSet()
+            val days = MoodRepository.lastDays(120).reversed()
+            val start = if (days.first() in dates) 0 else 1
+            var n = 0
+            for (i in start until days.size) { if (days[i] in dates) n++ else break }
+            return n
+        }
+
     // ---------- reminder settings state ----------
     var moodReminderOn by mutableStateOf(settings.moodReminder)
         private set

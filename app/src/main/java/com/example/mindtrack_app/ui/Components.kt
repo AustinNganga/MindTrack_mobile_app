@@ -1,5 +1,11 @@
 package com.example.mindtrack_app.ui
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.foundation.LocalIndication
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
@@ -135,8 +141,10 @@ fun AppCard(
     content: @Composable () -> Unit,
 ) {
     val shape = MaterialTheme.shapes.large
+    val interaction = remember { MutableInteractionSource() }
     Surface(
-        modifier = modifier.fillMaxWidth().clip(shape).then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
+        modifier = modifier.staggerIn().fillMaxWidth().pressScale(interaction).clip(shape)
+            .then(if (onClick != null) Modifier.clickable(interactionSource = interaction, indication = LocalIndication.current, onClick = onClick) else Modifier),
         shape = shape,
         color = container,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
@@ -234,7 +242,10 @@ fun SegmentedProgress(fractions: List<Float>, modifier: Modifier = Modifier) {
 @Composable
 fun RiskGauge(score: Double, threshold: Double, level: RiskLevel, modifier: Modifier = Modifier) {
     val target = score.coerceIn(0.0, 1.0).toFloat()
-    val animated by animateFloatAsState(target, animationSpec = tween(1100), label = "gauge")
+    // Sweeps up from zero each time the result opens.
+    val sweep = remember { Animatable(0f) }
+    LaunchedEffect(target) { sweep.animateTo(target, tween(1400, easing = FastOutSlowInEasing)) }
+    val animated = sweep.value
     val track = MaterialTheme.colorScheme.surfaceVariant
     val markerRing = MaterialTheme.colorScheme.surface
     Box(modifier.fillMaxWidth().aspectRatio(1.7f), contentAlignment = Alignment.BottomCenter) {

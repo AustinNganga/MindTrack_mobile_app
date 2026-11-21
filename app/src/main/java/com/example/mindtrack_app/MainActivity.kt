@@ -19,6 +19,13 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.remember
+import com.example.mindtrack_app.ui.BreatherDialog
+import com.example.mindtrack_app.ui.LocalStagger
+import com.example.mindtrack_app.ui.StaggerCounter
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
@@ -167,6 +174,8 @@ private val tabs = listOf(
     Tab(Screen.PROFILE, "Profile", MtIcons.Person),
 )
 
+private val screenOrder = listOf(Screen.HOME, Screen.INSIGHTS, Screen.HISTORY, Screen.PROFILE, Screen.ABOUT)
+
 private fun titleFor(screen: Screen): String = when (screen) {
     Screen.HOME -> "MindTrack"
     Screen.INSIGHTS -> "Insights"
@@ -190,6 +199,7 @@ private fun MindTrackApp(
     LaunchedEffect(vm.screen) { if (vm.screen in tabs.map { it.screen }) lastTab = vm.screen }
     var showSupport by rememberSaveable { mutableStateOf(false) }
     if (showSupport) SupportDialog(onDismiss = { showSupport = false })
+    if (vm.showBreather) BreatherDialog(onClose = { vm.showBreather = false })
 
     // App lock: cover everything until the student unlocks.
     if (vm.locked && vm.screen != Screen.LOADING && vm.screen != Screen.ERROR && vm.profile != null) {
@@ -216,6 +226,7 @@ private fun MindTrackApp(
                     onSettings = { vm.go(Screen.PROFILE) },
                     onSupport = { showSupport = true },
                     onAbout = { vm.go(Screen.ABOUT) },
+                    onBreathe = { vm.showBreather = true },
                 )
             },
             bottomBar = {
@@ -233,15 +244,23 @@ private fun MindTrackApp(
         ) { padding ->
             AnimatedContent(
                 targetState = vm.screen,
-                transitionSpec = { fadeIn(tween(220)) togetherWith fadeOut(tween(150)) },
+                transitionSpec = {
+                    // Slide towards the tab you tapped (right for tabs further along, left for earlier ones).
+                    val dir = if (screenOrder.indexOf(targetState) >= screenOrder.indexOf(initialState)) 1 else -1
+                    (slideInHorizontally(tween(300)) { w -> dir * w / 6 } + fadeIn(tween(300))) togetherWith
+                        (slideOutHorizontally(tween(200)) { w -> -dir * w / 6 } + fadeOut(tween(150)))
+                },
                 label = "tabs",
             ) { screen ->
+                // A fresh stagger counter per visit, so cards rise in one after another.
+                CompositionLocalProvider(LocalStagger provides remember { StaggerCounter() }) {
                 when (screen) {
                     Screen.HOME -> HomeScreen(
                         profile = vm.profile, checkIns = vm.checkIns, questionCount = vm.questionCount, contentPadding = padding,
                         onStart = vm::startCheckIn, onOpen = vm::openCheckIn, onSeeHistory = { vm.go(Screen.HISTORY) },
                         todayMood = vm.todayMood?.mood, onLogMood = { vm.logMood(it) },
                         onOpenInsights = { vm.go(Screen.INSIGHTS) },
+                        moodStreak = vm.moodStreak, onBreathe = { vm.showBreather = true },
                     )
                     Screen.INSIGHTS -> InsightsScreen(vm, padding)
                     Screen.HISTORY -> HistoryScreen(vm.checkIns, vm.threshold, padding, onOpen = vm::openCheckIn, onStart = vm::startCheckIn)
@@ -258,6 +277,7 @@ private fun MindTrackApp(
                         },
                     )
                     else -> Unit
+                }
                 }
             }
         }

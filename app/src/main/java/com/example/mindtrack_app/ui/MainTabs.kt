@@ -1,5 +1,18 @@
 package com.example.mindtrack_app.ui
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.graphicsLayer
+import kotlinx.coroutines.delay
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -60,22 +73,59 @@ fun HomeScreen(
     todayMood: Int?,
     onLogMood: (Int) -> Unit,
     onOpenInsights: () -> Unit,
+    moodStreak: Int = 0,
+    onBreathe: () -> Unit = {},
 ) {
     val cs = MaterialTheme.colorScheme
     val latest = checkIns.firstOrNull()
+    // A friendly wave when Home opens.
+    val wave = remember { Animatable(0f) }
+    LaunchedEffect(Unit) {
+        delay(450)
+        repeat(2) { wave.animateTo(18f, tween(150)); wave.animateTo(-10f, tween(150)) }
+        wave.animateTo(0f, tween(150))
+    }
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(contentPadding).padding(horizontal = 20.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         Spacer(Modifier.height(8.dp))
-        Column {
+        Column(Modifier.staggerIn()) {
             val name = profile?.name.orEmpty()
-            Text(if (name.isBlank()) "${greeting()}" else "${greeting()}, $name", style = MaterialTheme.typography.headlineMedium)
-            Text(formatDate(System.currentTimeMillis(), "EEEE, d MMMM"), style = MaterialTheme.typography.bodyLarge, color = cs.onSurfaceVariant)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    if (name.isBlank()) greeting() else "${greeting()}, $name",
+                    style = MaterialTheme.typography.headlineMedium, modifier = Modifier.weight(1f, fill = false),
+                )
+                Text(
+                    " 👋", style = MaterialTheme.typography.headlineMedium,
+                    modifier = Modifier.graphicsLayer {
+                        rotationZ = wave.value
+                        transformOrigin = TransformOrigin(0.7f, 0.9f)
+                    },
+                )
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(formatDate(System.currentTimeMillis(), "EEEE, d MMMM"), style = MaterialTheme.typography.bodyLarge, color = cs.onSurfaceVariant)
+                if (moodStreak > 0) {
+                    Spacer(Modifier.width(10.dp))
+                    Surface(color = cs.tertiaryContainer, shape = CircleShape) {
+                        Row(Modifier.padding(horizontal = 10.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Text("🔥 ", style = MaterialTheme.typography.labelLarge)
+                            AnimatedContent(
+                                targetState = moodStreak,
+                                transitionSpec = { (slideInVertically { it } + fadeIn()) togetherWith (slideOutVertically { -it } + fadeOut()) },
+                                label = "streak",
+                            ) { n -> Text("$n", style = MaterialTheme.typography.labelLarge, color = cs.onTertiaryContainer) }
+                            Text("-day streak", style = MaterialTheme.typography.labelLarge, color = cs.onTertiaryContainer)
+                        }
+                    }
+                }
+            }
         }
 
         // Hero call to action
-        Box(Modifier.fillMaxWidth().clip(MaterialTheme.shapes.extraLarge).background(HeroBrush)) {
+        Box(Modifier.staggerIn().fillMaxWidth().clip(MaterialTheme.shapes.extraLarge).background(HeroBrush).floatingBubbles()) {
             Column(Modifier.padding(24.dp)) {
                 Text("How are you, really?", style = MaterialTheme.typography.headlineSmall, color = Color.White)
                 Spacer(Modifier.height(6.dp))
@@ -102,7 +152,20 @@ fun HomeScreen(
                     )
                     TextButton(onClick = onOpenInsights) { Text("Insights") }
                 }
-                MoodPicker(todayMood, onLogMood)
+                MoodPicker(todayMood, onBreathe = onBreathe, onPick = onLogMood)
+            }
+        }
+
+        // Calm-down shortcut
+        AppCard(onClick = onBreathe) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconBadge(MtIcons.Moon, tint = cs.primary, background = cs.primaryContainer)
+                Spacer(Modifier.width(14.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("Need a moment?", style = MaterialTheme.typography.titleMedium)
+                    Text("Try a calming 1-minute breather", style = MaterialTheme.typography.bodyMedium, color = cs.onSurfaceVariant)
+                }
+                Icon(MtIcons.ChevronRight, contentDescription = null, tint = cs.onSurfaceVariant)
             }
         }
 

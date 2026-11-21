@@ -1,5 +1,8 @@
 package com.example.mindtrack_app.ui
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.spring
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -221,8 +224,15 @@ private fun FinishPage(vm: MindTrackViewModel) {
     val complete = vm.answeredCount == vm.questionCount
     Column(Modifier.fillMaxSize().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         Spacer(Modifier.weight(1f))
+        val pop = remember { Animatable(0f) }
+        LaunchedEffect(Unit) { pop.animateTo(1f, spring(dampingRatio = 0.4f, stiffness = 220f)) }
         Box(contentAlignment = Alignment.Center) {
-            IconBadge(MtIcons.Check, tint = cs.onSecondary, background = cs.secondary, size = 96.dp)
+            if (complete) {
+                SparkleBurst(trigger = 1, colors = listOf(cs.primary, cs.secondary, cs.tertiary), modifier = Modifier.size(96.dp), particles = 18, reach = 100.dp)
+            }
+            Box(Modifier.graphicsLayer { scaleX = pop.value; scaleY = pop.value }) {
+                IconBadge(MtIcons.Check, tint = cs.onSecondary, background = cs.secondary, size = 96.dp)
+            }
         }
         Spacer(Modifier.height(24.dp))
         Text(if (complete) "All done. Thank you." else "Almost there", style = MaterialTheme.typography.headlineMedium, textAlign = TextAlign.Center)
