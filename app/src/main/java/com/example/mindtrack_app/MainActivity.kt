@@ -1,7 +1,14 @@
 package com.example.mindtrack_app
 
+import android.content.Intent
 import android.os.Bundle
-import androidx.activity.ComponentActivity
+import android.os.SystemClock
+import androidx.biometric.BiometricManager
+import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_WEAK
+import androidx.biometric.BiometricManager.Authenticators.DEVICE_CREDENTIAL
+import androidx.biometric.BiometricPrompt
+import androidx.core.content.ContextCompat
+import androidx.fragment.app.FragmentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -29,6 +36,10 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import com.example.mindtrack_app.ui.AboutScreen
 import com.example.mindtrack_app.ui.AccountScreen
+import com.example.mindtrack_app.ui.AppLockCard
+import com.example.mindtrack_app.ui.LockScreen
+import com.example.mindtrack_app.ui.ReminderSettingsCard
+import com.example.mindtrack_app.reminders.Reminders
 import com.example.mindtrack_app.ui.CheckInScreen
 import com.example.mindtrack_app.ui.ConsentScreen
 import com.example.mindtrack_app.ui.ErrorScreen
@@ -42,19 +53,82 @@ import com.example.mindtrack_app.ui.ResultScreen
 import com.example.mindtrack_app.ui.WelcomeScreen
 import com.example.mindtrack_app.ui.theme.Mindtrack_appTheme
 
-class MainActivity : ComponentActivity() {
+// FragmentActivity (a ComponentActivity) is required by the system BiometricPrompt used for the app lock.
+class MainActivity : FragmentActivity() {
     private val vm: MindTrackViewModel by viewModels()
+
+    /** When the app last went to the background, for re-locking after [RELOCK_AFTER_MS]. */
+    private var backgroundedAt = 0L
+    /** True while the PIN/fingerprint prompt is showing (the PIN screen briefly stops this activity). */
+    private var authInProgress = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        Reminders.createChannel(this)
+        vm.handleOpen(intent?.getStringExtra(Reminders.EXTRA_OPEN))
         setContent {
             Mindtrack_appTheme {
                 Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-                    MindTrackApp(vm)
+                    MindTrackApp(vm, authenticate = ::authenticate, canUseLock = ::canUseLock)
                 }
             }
         }
+    }
+
+    /** A reminder notification was tapped while the app was already open. */
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        vm.handleOpen(intent.getStringExtra(Reminders.EXTRA_OPEN))
+    }
+
+    override fun onStop() {
+        super.onStop()
+        if (!authInProgress) backgroundedAt = SystemClock.elapsedRealtime()
+    }
+
+    override fun onStart() {
+        super.onStart()
+        if (!authInProgress && backgroundedAt != 0L && SystemClock.elapsedRealtime() - backgroundedAt > RELOCK_AFTER_MS) {
+            vm.lockIfEnabled()
+        }
+    }
+
+    /** Fingerprint/face if enrolled, otherwise the phone's PIN, pattern or password. */
+    private fun canUseLock(): Boolean =
+        BiometricManager.from(this).canAuthenticate(AUTHENTICATORS) == BiometricManager.BIOMETRIC_SUCCESS
+
+    private fun authenticate(onSuccess: () -> Unit) {
+        if (authInProgress) return
+        authInProgress = true
+        val prompt = BiometricPrompt(
+            this, ContextCompat.getMainExecutor(this),
+            object : BiometricPrompt.AuthenticationCallback() {
+                override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
+                    authInProgress = false
+                    onSuccess()
+                }
+
+                override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
+                    authInProgress = false
+                    val cancelled = errorCode == BiometricPrompt.ERROR_USER_CANCELED ||
+                        errorCode == BiometricPrompt.ERROR_NEGATIVE_BUTTON || errorCode == BiometricPrompt.ERROR_CANCELED
+                    if (!cancelled) vm.lockMessage = errString.toString()
+                }
+            },
+        )
+        val info = BiometricPrompt.PromptInfo.Builder()
+            .setTitle("Unlock MindTrack")
+            .setSubtitle("Use your PIN, fingerprint or face")
+            .setAllowedAuthenticators(AUTHENTICATORS) // no negative button allowed when DEVICE_CREDENTIAL is included
+            .build()
+        prompt.authenticate(info)
+    }
+
+    private companion object {
+        const val AUTHENTICATORS = BIOMETRIC_WEAK or DEVICE_CREDENTIAL
+        const val RELOCK_AFTER_MS = 30_000L
     }
 
     override fun onResume() {
@@ -75,7 +149,17 @@ private val tabs = listOf(
 )
 
 @Composable
-private fun MindTrackApp(vm: MindTrackViewModel) {
+private fun MindTrackApp(
+    vm: MindTrackViewModel,
+    authenticate: (onSuccess: () -> Unit) -> Unit,
+    canUseLock: () -> Boolean,
+) {
+    // App lock: cover everything until the student unlocks.
+    if (vm.locked && vm.screen != Screen.LOADING && vm.screen != Screen.ERROR && vm.profile != null) {
+        LockScreen(message = vm.lockMessage, onUnlock = { authenticate { vm.unlock() } })
+        return
+    }
+
     BackHandler(enabled = vm.screen !in listOf(Screen.HOME, Screen.WELCOME, Screen.LOADING, Screen.ERROR)) { vm.back() }
 
     val isTab = vm.screen in tabs.map { it.screen }
@@ -116,6 +200,10 @@ private fun MindTrackApp(vm: MindTrackViewModel) {
                         onSaveName = vm::updateName,
                         onTurnOnBackup = { vm.openAccount(AccountMode.SIGN_UP, fromWelcome = false) },
                         onSyncNow = vm::syncNow, onSignOut = vm::signOutOfBackup, onDeleteAll = vm::deleteAllData,
+                        settingsContent = {
+                            ReminderSettingsCard(vm)
+                            AppLockCard(vm, canUseLock = canUseLock, authenticate = authenticate)
+                        },
                     )
                     else -> Unit
                 }

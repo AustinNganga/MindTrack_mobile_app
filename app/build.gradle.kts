@@ -59,5 +59,9 @@ dependencies {
     implementation("com.google.firebase:firebase-auth")       // email/password accounts
     implementation("com.google.firebase:firebase-firestore")  // cloud database for check-in backups
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.10.2") // await() for Firebase tasks
+    // Mobile features
+    implementation("androidx.work:work-runtime-ktx:2.11.2")   // reminders (background scheduling)
+    implementation("androidx.biometric:biometric:1.1.0")      // app lock (PIN / fingerprint / face)
+    implementation("androidx.fragment:fragment-ktx:1.9.1")    // FragmentActivity, needed by BiometricPrompt
 
 }

@@ -284,6 +284,7 @@ fun ProfileScreen(
     onSyncNow: () -> Unit,
     onSignOut: () -> Unit,
     onDeleteAll: () -> Unit,
+    settingsContent: @Composable () -> Unit = {},
 ) {
     val cs = MaterialTheme.colorScheme
     var name by rememberSaveable(profile?.name) { mutableStateOf(profile?.name.orEmpty()) }
@@ -349,6 +350,7 @@ fun ProfileScreen(
                 }
             }
         }
+        settingsContent()
         AppCard {
             Column {
                 Row(verticalAlignment = Alignment.CenterVertically) {

@@ -8,6 +8,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.mindtrack_app.data.AppSettings
 import com.example.mindtrack_app.data.CheckIn
 import com.example.mindtrack_app.data.CloudBackup
 import com.example.mindtrack_app.data.LocalRepository
@@ -22,6 +23,7 @@ import com.example.mindtrack_app.data.QuestionBank
 import com.example.mindtrack_app.data.RiskLevel
 import com.example.mindtrack_app.data.Section
 import com.example.mindtrack_app.model.MindTrackModel
+import com.example.mindtrack_app.reminders.Reminders
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -45,6 +47,7 @@ class MindTrackViewModel(app: Application) : AndroidViewModel(app) {
     private val cloud = CloudBackup()
     private val moodRepo = MoodRepository(app)
     private val screenTimeReader = ScreenTimeReader(app)
+    private val settings = AppSettings(app)
     private var model: MindTrackModel? = null
 
     var screen by mutableStateOf(Screen.LOADING)
@@ -77,6 +80,29 @@ class MindTrackViewModel(app: Application) : AndroidViewModel(app) {
         private set
     var screenTimeLoading by mutableStateOf(false)
         private set
+
+    // ---------- app lock state ----------
+    var lockEnabled by mutableStateOf(settings.lockEnabled)
+        private set
+    /** True while the lock screen should cover the app. Starts locked if the lock is on. */
+    var locked by mutableStateOf(settings.lockEnabled)
+        private set
+    var lockMessage by mutableStateOf<String?>(null)
+
+    // ---------- reminder settings state ----------
+    var moodReminderOn by mutableStateOf(settings.moodReminder)
+        private set
+    var checkInReminderOn by mutableStateOf(settings.checkInReminder)
+        private set
+    var reminderHour by mutableIntStateOf(settings.reminderHour)
+        private set
+    var reminderMinute by mutableIntStateOf(settings.reminderMinute)
+        private set
+    var checkInIntervalDays by mutableIntStateOf(settings.checkInIntervalDays)
+        private set
+
+    /** Screen requested by a tapped notification while the app was still loading. */
+    private var pendingOpen: String? = null
 
     // ---------- cloud backup state ----------
     /** Email of the signed-in account, or null when cloud backup is off. */
@@ -123,6 +149,9 @@ class MindTrackViewModel(app: Application) : AndroidViewModel(app) {
                 moods = moodRepo.recent()
                 refreshScreenTime()
                 screen = if (profile == null) Screen.WELCOME else Screen.HOME
+                if (profile == null) locked = false
+                pendingOpen?.let { applyOpen(it) }
+                pendingOpen = null
             } catch (e: Exception) {
                 errorMessage = e.message ?: e.toString()
                 screen = Screen.ERROR
@@ -174,6 +203,12 @@ class MindTrackViewModel(app: Application) : AndroidViewModel(app) {
             }
             repository.deleteAll()
             moodRepo.deleteAll()
+            Reminders.cancelAll(getApplication<Application>())
+            settings.clear()
+            lockEnabled = false; locked = false
+            moodReminderOn = false; checkInReminderOn = false
+            reminderHour = settings.reminderHour; reminderMinute = settings.reminderMinute
+            checkInIntervalDays = settings.checkInIntervalDays
             moods = emptyList()
             profile = null
             checkIns = emptyList()
@@ -273,6 +308,63 @@ class MindTrackViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             screenTime = runCatching { screenTimeReader.summary() }.getOrNull()
             screenTimeLoading = false
+        }
+    }
+
+    // ---------- app lock ----------
+
+    fun changeAppLock(on: Boolean) {
+        settings.lockEnabled = on
+        lockEnabled = on
+        lockMessage = null
+    }
+
+    /** Called when the app returns from the background after a while. */
+    fun lockIfEnabled() {
+        if (lockEnabled && profile != null) locked = true
+    }
+
+    fun unlock() {
+        locked = false
+        lockMessage = null
+    }
+
+    // ---------- reminders ----------
+
+    fun setMoodReminder(on: Boolean) {
+        settings.moodReminder = on; moodReminderOn = on
+        Reminders.apply(getApplication<Application>(), settings)
+    }
+
+    fun setCheckInReminder(on: Boolean) {
+        settings.checkInReminder = on; checkInReminderOn = on
+        Reminders.apply(getApplication<Application>(), settings)
+    }
+
+    fun setReminderTime(hour: Int, minute: Int) {
+        settings.reminderHour = hour; settings.reminderMinute = minute
+        reminderHour = hour; reminderMinute = minute
+        Reminders.apply(getApplication<Application>(), settings)
+    }
+
+    fun setCheckInInterval(days: Int) {
+        settings.checkInIntervalDays = days; checkInIntervalDays = days
+        Reminders.apply(getApplication<Application>(), settings)
+    }
+
+    fun sendTestReminder(type: String) = Reminders.sendTest(getApplication<Application>(), type)
+
+    /** Opens the screen a notification asked for (or remembers it until the app has loaded). */
+    fun handleOpen(action: String?) {
+        if (action == null) return
+        if (screen == Screen.LOADING) pendingOpen = action else applyOpen(action)
+    }
+
+    private fun applyOpen(action: String) {
+        if (profile == null) return
+        when (action) {
+            Reminders.OPEN_MOOD -> screen = Screen.INSIGHTS
+            Reminders.OPEN_CHECKIN -> if (screen != Screen.CHECK_IN) startCheckIn()
         }
     }
 
