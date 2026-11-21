@@ -45,6 +45,9 @@ class MindTrackDatabase(context: Context) :
     /** Migrations: existing users keep their moods and gain the new table. */
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
         if (oldVersion < 2) createScreenTimeTable(db)
+        // v3: screen time is now measured as one timeline, so earlier (over-counted) totals are cleared.
+        // The last ~7 days are rebuilt automatically from Android's usage log the next time the app opens.
+        if (oldVersion < 3) db.execSQL("DELETE FROM $TABLE_SCREEN")
     }
 
     private fun createScreenTimeTable(db: SQLiteDatabase) {
@@ -62,7 +65,7 @@ class MindTrackDatabase(context: Context) :
 
     companion object {
         const val DB_NAME = "mindtrack.db"
-        const val DB_VERSION = 2
+        const val DB_VERSION = 3
         const val TABLE_SCREEN = "screen_time_daily"
         const val TABLE_MOOD = "mood_entries"
         const val COL_DATE = "date"

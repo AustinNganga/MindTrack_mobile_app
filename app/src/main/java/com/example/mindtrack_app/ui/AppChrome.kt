@@ -38,6 +38,7 @@ fun MainTopBar(
     onAbout: () -> Unit,
     onBreathe: () -> Unit = {},
     onTour: () -> Unit = {},
+    onShareSummary: () -> Unit = {},
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     val cs = MaterialTheme.colorScheme
@@ -57,6 +58,7 @@ fun MainTopBar(
                     MenuRow("Log today's mood", MtIcons.Heart) { menuOpen = false; onLogMood() }
                     MenuRow("1-minute breather", MtIcons.Moon) { menuOpen = false; onBreathe() }
                     MenuRow("Reminders & app lock", MtIcons.Timer) { menuOpen = false; onSettings() }
+                    MenuRow("Share summary (PDF)", MtIcons.History) { menuOpen = false; onShareSummary() }
                     HorizontalDivider()
                     MenuRow("Get support now", MtIcons.Call) { menuOpen = false; onSupport() }
                     MenuRow("How to use MindTrack", MtIcons.Sparkle) { menuOpen = false; onTour() }

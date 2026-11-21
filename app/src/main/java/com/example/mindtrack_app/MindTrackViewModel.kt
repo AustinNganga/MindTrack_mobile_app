@@ -1,5 +1,6 @@
 package com.example.mindtrack_app
 
+import com.example.mindtrack_app.goals.Goals
 import com.example.mindtrack_app.widget.MoodWidget
 import android.app.Application
 import androidx.compose.runtime.getValue
@@ -96,11 +97,96 @@ class MindTrackViewModel(app: Application) : AndroidViewModel(app) {
         private set
     var lockMessage by mutableStateOf<String?>(null)
 
+    /** True while the "share a summary" (PDF) screen is open. */
+    var showReport by mutableStateOf(false)
+
     /** True while the 1-minute breathing exercise is open. */
     var showBreather by mutableStateOf(false)
 
     /** Days in a row with a mood logged (see MoodRepository.streak). */
     val moodStreak: Int get() = MoodRepository.streak(moods.map { it.date })
+
+    // ---------- screen-time goal & bedtime ----------
+    var screenGoalMinutes by mutableIntStateOf(settings.screenGoalMinutes)
+        private set
+    var goalNudgesOn by mutableStateOf(settings.goalNudges)
+        private set
+    var bedtimeNudgeOn by mutableStateOf(settings.bedtimeNudge)
+        private set
+    var bedtimeHour by mutableIntStateOf(settings.bedtimeHour)
+        private set
+    var bedtimeMinute by mutableIntStateOf(settings.bedtimeMinute)
+        private set
+
+    fun setScreenGoal(minutes: Int) {
+        settings.screenGoalMinutes = minutes; screenGoalMinutes = minutes
+        Goals.apply(getApplication<Application>(), settings)
+    }
+
+    fun setGoalNudges(on: Boolean) {
+        settings.goalNudges = on; goalNudgesOn = on
+        Goals.apply(getApplication<Application>(), settings)
+    }
+
+    fun setBedtimeNudge(on: Boolean) {
+        settings.bedtimeNudge = on; bedtimeNudgeOn = on
+        Goals.apply(getApplication<Application>(), settings)
+    }
+
+    fun setBedtime(hour: Int, minute: Int) {
+        settings.bedtimeHour = hour; settings.bedtimeMinute = minute
+        bedtimeHour = hour; bedtimeMinute = minute
+    }
+
+    fun sendTestNudge() = Goals.sendTest(getApplication<Application>())
+
+    /** A suggested goal: 15% under the 7-day average, rounded down to 15 minutes (30 min to 8 h). */
+    val suggestedGoalMinutes: Int?
+        get() {
+            val avg = screenTime?.weekAverageMillis ?: return null
+            if (avg <= 0) return null
+            return ((avg / 60_000.0 * 0.85) / 15).toInt().times(15).coerceIn(30, 480)
+        }
+
+    /** (days goal met, days counted) over up to the last 7 finished days. */
+    val goalDaysMet: Pair<Int, Int>?
+        get() {
+            if (screenGoalMinutes <= 0) return null
+            val today = MoodRepository.today()
+            val past = screenTimeHistory.filter { it.date != today }.takeLast(7)
+            if (past.isEmpty()) return null
+            return past.count { it.totalMillis <= screenGoalMinutes * 60_000L } to past.size
+        }
+
+    // ---------- safety net ----------
+    private var safetyHiddenUntil by mutableStateOf(settings.safetyHiddenUntil)
+
+    /**
+     * Why the caring support card should show on Home, or null. Shows after three low moods in a row
+     * (🙁 or 😞), or an Elevated check-in in the last 7 days, unless hidden with "Not now".
+     */
+    val safetyReason: String?
+        get() {
+            if (profile == null) return null
+            val today = MoodRepository.today()
+            if (safetyHiddenUntil.isNotEmpty() && safetyHiddenUntil >= today) return null
+            val byDate = moods.associate { it.date to it.mood }
+            val days = MoodRepository.lastDays(4) // oldest first, ending today
+            val window = if (days[3] in byDate) days.subList(1, 4) else days.subList(0, 3)
+            if (window.all { (byDate[it] ?: 5) <= 2 }) return "You've logged a low mood three days in a row."
+            val last = checkIns.firstOrNull()
+            if (last != null && last.level == RiskLevel.ELEVATED &&
+                System.currentTimeMillis() - last.timestamp < 7 * 24 * 60 * 60 * 1000L
+            ) return "Your latest check-in came back Elevated."
+            return null
+        }
+
+    /** "Not now": hide the support card for 3 days (today and the next two). */
+    fun hideSafetyCard() {
+        val until = MoodRepository.dateOf(System.currentTimeMillis() + 2 * 24 * 60 * 60 * 1000L)
+        settings.safetyHiddenUntil = until
+        safetyHiddenUntil = until
+    }
 
     /** True while the first-run tutorial is showing. */
     var showTour by mutableStateOf(!settings.tourSeen)
@@ -170,6 +256,7 @@ class MindTrackViewModel(app: Application) : AndroidViewModel(app) {
                 moods = moodRepo.recent()
                 screenTimeHistory = runCatching { screenTimeRepo.lastDays(14) }.getOrDefault(emptyList())
                 refreshScreenTime()
+                Goals.apply(getApplication<Application>(), settings)
                 screen = if (profile == null) Screen.WELCOME else Screen.HOME
                 if (profile == null) locked = false
                 pendingOpen?.let { applyOpen(it) }
@@ -230,6 +317,9 @@ class MindTrackViewModel(app: Application) : AndroidViewModel(app) {
             settings.clear()
             lockEnabled = false; locked = false
             moodReminderOn = false; checkInReminderOn = false
+            Goals.cancel(getApplication<Application>())
+            screenGoalMinutes = 0; goalNudgesOn = true; bedtimeNudgeOn = false
+            bedtimeHour = 23; bedtimeMinute = 0; safetyHiddenUntil = ""
             reminderHour = settings.reminderHour; reminderMinute = settings.reminderMinute
             checkInIntervalDays = settings.checkInIntervalDays
             moods = emptyList()

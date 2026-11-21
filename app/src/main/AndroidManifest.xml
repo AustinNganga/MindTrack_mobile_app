@@ -48,6 +48,17 @@
             android:name=".reminders.MoodActionReceiver"
             android:exported="false" />
 
+        <!-- Shares the PDF summary with other apps safely (temporary read access, no raw file paths). -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+
         <!-- Home-screen widget (must be exported so the launcher can host it). -->
         <receiver
             android:name=".widget.MoodWidget"

@@ -75,6 +75,8 @@ fun HomeScreen(
     onOpenInsights: () -> Unit,
     moodStreak: Int = 0,
     onBreathe: () -> Unit = {},
+    topContent: @Composable () -> Unit = {},
+    middleContent: @Composable () -> Unit = {},
 ) {
     val cs = MaterialTheme.colorScheme
     val latest = checkIns.firstOrNull()
@@ -124,6 +126,9 @@ fun HomeScreen(
             }
         }
 
+        // Safety net (only shown when needed)
+        topContent()
+
         // Hero call to action
         Box(Modifier.staggerIn().fillMaxWidth().clip(MaterialTheme.shapes.extraLarge).background(HeroBrush).floatingBubbles()) {
             Column(Modifier.padding(24.dp)) {
@@ -155,6 +160,9 @@ fun HomeScreen(
                 MoodPicker(todayMood, onBreathe = onBreathe, onPick = onLogMood)
             }
         }
+
+        // Screen-time goal ring
+        middleContent()
 
         // Calm-down shortcut
         AppCard(onClick = onBreathe) {

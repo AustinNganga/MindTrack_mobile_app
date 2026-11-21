@@ -38,6 +38,46 @@ class AppSettings(context: Context) {
         get() = prefs.getBoolean(KEY_TOUR, false)
         set(v) = prefs.edit { putBoolean(KEY_TOUR, v) }
 
+    // ---- screen-time goal & bedtime ----
+    /** Daily screen-time goal in minutes; 0 = no goal. */
+    var screenGoalMinutes: Int
+        get() = prefs.getInt("screen_goal_min", 0)
+        set(v) = prefs.edit { putInt("screen_goal_min", v) }
+
+    var goalNudges: Boolean
+        get() = prefs.getBoolean("goal_nudges", true)
+        set(v) = prefs.edit { putBoolean("goal_nudges", v) }
+
+    var bedtimeNudge: Boolean
+        get() = prefs.getBoolean("bedtime_nudge", false)
+        set(v) = prefs.edit { putBoolean("bedtime_nudge", v) }
+
+    var bedtimeHour: Int
+        get() = prefs.getInt("bedtime_hour", 23)
+        set(v) = prefs.edit { putInt("bedtime_hour", v) }
+
+    var bedtimeMinute: Int
+        get() = prefs.getInt("bedtime_minute", 0)
+        set(v) = prefs.edit { putInt("bedtime_minute", v) }
+
+    /** Dates (yyyy-MM-dd) of the last nudges, so each is sent at most once a day/night. */
+    var goalNudged80: String
+        get() = prefs.getString("goal_nudged_80", "") ?: ""
+        set(v) = prefs.edit { putString("goal_nudged_80", v) }
+
+    var goalNudged100: String
+        get() = prefs.getString("goal_nudged_100", "") ?: ""
+        set(v) = prefs.edit { putString("goal_nudged_100", v) }
+
+    var bedtimeNudged: String
+        get() = prefs.getString("bedtime_nudged", "") ?: ""
+        set(v) = prefs.edit { putString("bedtime_nudged", v) }
+
+    /** The safety-net card stays hidden up to and including this date (yyyy-MM-dd) after "Not now". */
+    var safetyHiddenUntil: String
+        get() = prefs.getString("safety_hidden_until", "") ?: ""
+        set(v) = prefs.edit { putString("safety_hidden_until", v) }
+
     fun clear() = prefs.edit { clear() }
 
     private companion object {

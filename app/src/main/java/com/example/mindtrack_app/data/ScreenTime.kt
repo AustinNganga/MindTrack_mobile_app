@@ -50,6 +50,13 @@ class ScreenTimeReader(context: Context) {
     fun permissionIntent(): Intent =
         Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
 
+    /** Total foreground time of user apps between two moments (used by the goal nudges). */
+    suspend fun usageMillis(start: Long, end: Long): Long = withContext(Dispatchers.Default) {
+        usageBetween(start, end).first.values.sum()
+    }
+
+    fun startOfToday(): Long = startOfDay(0)
+
     suspend fun summary(): ScreenTimeSummary = withContext(Dispatchers.Default) {
         val now = System.currentTimeMillis()
         val week = (6 downTo 0).map { daysAgo ->
@@ -67,36 +74,50 @@ class ScreenTimeReader(context: Context) {
     }
 
     /**
-     * Adds up foreground time per app between [start] and [end] from the raw event stream
-     * (app came to the foreground -> app went to the background), and counts unlocks.
+     * Adds up foreground time per app between [start] and [end] from the raw event stream, and counts unlocks.
+     *
+     * Only ONE app can be in the foreground at a time, so we walk the events as a single timeline:
+     * when an app comes to the front, whatever was in front before is closed at that moment; when the
+     * screen turns off or locks, everything is closed. This stops a missing "went to background" event
+     * (common after the emulator resumes from a snapshot, or after a crash) from counting for hours,
+     * and guarantees a day can never add up to more time than has actually passed.
      */
     private fun usageBetween(start: Long, end: Long): Pair<Map<String, Long>, Int?> {
         val usm = ctx.getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
         val events = usm.queryEvents(start, end)
         val event = UsageEvents.Event()
-        val openSince = HashMap<String, Long>()
-        val seen = HashSet<String>()
         val totals = HashMap<String, Long>()
         var unlocks = 0
+        var current: String? = null // app in the foreground right now
+        var since = 0L              // when it came to the foreground
+        var anyEvent = false
         fun add(pkg: String, ms: Long) { if (ms > 0) totals[pkg] = (totals[pkg] ?: 0L) + ms }
+        fun close(at: Long) {
+            current?.let { add(it, at - since) }
+            current = null
+        }
 
         while (events.hasNextEvent()) {
             events.getNextEvent(event)
-            val pkg = event.packageName ?: continue
+            val ts = event.timeStamp
+            val pkg = event.packageName
             when (event.eventType) {
-                EVENT_RESUMED -> if (pkg !in openSince) openSince[pkg] = event.timeStamp
-                EVENT_PAUSED -> {
-                    val began = openSince.remove(pkg)
-                    when {
-                        began != null -> add(pkg, event.timeStamp - began)
-                        pkg !in seen -> add(pkg, event.timeStamp - start) // was already open when the window began
-                    }
+                EVENT_RESUMED -> if (pkg != null && pkg != current) {
+                    close(ts)
+                    current = pkg
+                    since = ts
                 }
+                EVENT_PAUSED -> when {
+                    pkg == current -> close(ts)
+                    // The very first event is an app leaving: it was already open when the window began.
+                    current == null && !anyEvent && pkg != null -> add(pkg, ts - start)
+                }
+                EVENT_SCREEN_OFF, EVENT_KEYGUARD_SHOWN, EVENT_SHUTDOWN -> close(ts)
                 EVENT_KEYGUARD_HIDDEN -> unlocks++
             }
-            seen.add(pkg)
+            anyEvent = true
         }
-        openSince.forEach { (pkg, began) -> add(pkg, end - began) } // still open at the end of the window
+        close(end) // the app still open at the end of the window
 
         // Keep only apps a person can open from the app drawer (skips system services).
         val userApps = totals.filterKeys { pm.getLaunchIntentForPackage(it) != null }
@@ -116,7 +137,10 @@ class ScreenTimeReader(context: Context) {
     private companion object {
         const val EVENT_RESUMED = 1          // UsageEvents.Event.ACTIVITY_RESUMED (MOVE_TO_FOREGROUND)
         const val EVENT_PAUSED = 2           // UsageEvents.Event.ACTIVITY_PAUSED (MOVE_TO_BACKGROUND)
+        const val EVENT_SCREEN_OFF = 16      // UsageEvents.Event.SCREEN_NON_INTERACTIVE (Android 9+)
+        const val EVENT_KEYGUARD_SHOWN = 17  // UsageEvents.Event.KEYGUARD_SHOWN (Android 9+): the phone was locked
         const val EVENT_KEYGUARD_HIDDEN = 18 // UsageEvents.Event.KEYGUARD_HIDDEN (Android 9+): the phone was unlocked
+        const val EVENT_SHUTDOWN = 26        // UsageEvents.Event.DEVICE_SHUTDOWN
     }
 }
 

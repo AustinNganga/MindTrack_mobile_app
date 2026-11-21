@@ -1,5 +1,10 @@
 package com.example.mindtrack_app
 
+import com.example.mindtrack_app.ui.ShareSummaryDialog
+import com.example.mindtrack_app.ui.ShareSummaryCard
+import com.example.mindtrack_app.ui.SafetyNetCard
+import com.example.mindtrack_app.ui.ScreenGoalHomeCard
+import com.example.mindtrack_app.ui.ScreenGoalCard
 import com.example.mindtrack_app.ui.TourScreen
 import android.content.Intent
 import android.os.Bundle
@@ -201,6 +206,7 @@ private fun MindTrackApp(
     var showSupport by rememberSaveable { mutableStateOf(false) }
     if (showSupport) SupportDialog(onDismiss = { showSupport = false })
     if (vm.showBreather) BreatherDialog(onClose = { vm.showBreather = false })
+    if (vm.showReport) ShareSummaryDialog(vm, onClose = { vm.showReport = false })
 
     // App lock: cover everything until the student unlocks.
     if (vm.locked && vm.screen != Screen.LOADING && vm.screen != Screen.ERROR && vm.profile != null) {
@@ -235,6 +241,7 @@ private fun MindTrackApp(
                     onAbout = { vm.go(Screen.ABOUT) },
                     onBreathe = { vm.showBreather = true },
                     onTour = { vm.go(Screen.HOME); vm.showTour = true },
+                    onShareSummary = { vm.showReport = true },
                 )
             },
             bottomBar = {
@@ -269,6 +276,12 @@ private fun MindTrackApp(
                         todayMood = vm.todayMood?.mood, onLogMood = { vm.logMood(it) },
                         onOpenInsights = { vm.go(Screen.INSIGHTS) },
                         moodStreak = vm.moodStreak, onBreathe = { vm.showBreather = true },
+                        topContent = {
+                            vm.safetyReason?.let { reason ->
+                                SafetyNetCard(reason, onBreathe = { vm.showBreather = true }, onHide = vm::hideSafetyCard)
+                            }
+                        },
+                        middleContent = { ScreenGoalHomeCard(vm, onOpenSettings = { vm.go(Screen.PROFILE) }) },
                     )
                     Screen.INSIGHTS -> InsightsScreen(vm, padding)
                     Screen.HISTORY -> HistoryScreen(vm.checkIns, vm.threshold, padding, onOpen = vm::openCheckIn, onStart = vm::startCheckIn)
@@ -280,6 +293,8 @@ private fun MindTrackApp(
                         onTurnOnBackup = { vm.openAccount(AccountMode.SIGN_UP, fromWelcome = false) },
                         onSyncNow = vm::syncNow, onSignOut = vm::signOutOfBackup, onDeleteAll = vm::deleteAllData,
                         settingsContent = {
+                            ShareSummaryCard(onOpen = { vm.showReport = true })
+                            ScreenGoalCard(vm)
                             ReminderSettingsCard(vm)
                             AppLockCard(vm, canUseLock = canUseLock, authenticate = authenticate)
                         },
