@@ -3,6 +3,7 @@ package com.example.mindtrack_app
 import android.content.Intent
 import android.os.Bundle
 import android.os.SystemClock
+import android.view.WindowManager
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_WEAK
 import androidx.biometric.BiometricManager.Authenticators.DEVICE_CREDENTIAL
@@ -30,6 +31,11 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -38,6 +44,8 @@ import com.example.mindtrack_app.ui.AboutScreen
 import com.example.mindtrack_app.ui.AccountScreen
 import com.example.mindtrack_app.ui.AppLockCard
 import com.example.mindtrack_app.ui.LockScreen
+import com.example.mindtrack_app.ui.MainTopBar
+import com.example.mindtrack_app.ui.SupportDialog
 import com.example.mindtrack_app.ui.ReminderSettingsCard
 import com.example.mindtrack_app.reminders.Reminders
 import com.example.mindtrack_app.ui.CheckInScreen
@@ -70,7 +78,7 @@ class MainActivity : FragmentActivity() {
         setContent {
             Mindtrack_appTheme {
                 Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-                    MindTrackApp(vm, authenticate = ::authenticate, canUseLock = ::canUseLock)
+                    MindTrackApp(vm, authenticate = ::authenticate, canUseLock = ::canUseLock, setSecure = ::setSecure)
                 }
             }
         }
@@ -93,6 +101,15 @@ class MainActivity : FragmentActivity() {
         if (!authInProgress && backgroundedAt != 0L && SystemClock.elapsedRealtime() - backgroundedAt > RELOCK_AFTER_MS) {
             vm.lockIfEnabled()
         }
+    }
+
+    /**
+     * While the app lock is on, hide MindTrack's content in the Recents switcher and block
+     * screenshots/screen recording (FLAG_SECURE). Turning the lock off allows screenshots again.
+     */
+    private fun setSecure(on: Boolean) {
+        if (on) window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        else window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
     }
 
     /** Fingerprint/face if enrolled, otherwise the phone's PIN, pattern or password. */
@@ -134,7 +151,10 @@ class MainActivity : FragmentActivity() {
     override fun onResume() {
         super.onResume()
         // Re-check "Usage access" after the student returns from Settings, and refresh today's screen time.
-        if (vm.screen != Screen.LOADING) vm.refreshScreenTime()
+        if (vm.screen != Screen.LOADING) {
+            vm.refreshScreenTime()
+            vm.reloadMoods() // picks up a mood logged from the reminder notification
+        }
     }
 }
 
@@ -144,30 +164,62 @@ private val tabs = listOf(
     Tab(Screen.HOME, "Home", MtIcons.Home),
     Tab(Screen.INSIGHTS, "Insights", MtIcons.Insights),
     Tab(Screen.HISTORY, "History", MtIcons.History),
-    Tab(Screen.ABOUT, "About", MtIcons.Info),
     Tab(Screen.PROFILE, "Profile", MtIcons.Person),
 )
+
+private fun titleFor(screen: Screen): String = when (screen) {
+    Screen.HOME -> "MindTrack"
+    Screen.INSIGHTS -> "Insights"
+    Screen.HISTORY -> "History"
+    Screen.PROFILE -> "Profile & settings"
+    Screen.ABOUT -> "About MindTrack"
+    else -> ""
+}
 
 @Composable
 private fun MindTrackApp(
     vm: MindTrackViewModel,
     authenticate: (onSuccess: () -> Unit) -> Unit,
     canUseLock: () -> Boolean,
+    setSecure: (Boolean) -> Unit,
 ) {
+    LaunchedEffect(vm.lockEnabled) { setSecure(vm.lockEnabled) }
+
+    // The tab the student was on, so "back" from About returns there.
+    var lastTab by rememberSaveable { mutableStateOf(Screen.HOME) }
+    LaunchedEffect(vm.screen) { if (vm.screen in tabs.map { it.screen }) lastTab = vm.screen }
+    var showSupport by rememberSaveable { mutableStateOf(false) }
+    if (showSupport) SupportDialog(onDismiss = { showSupport = false })
+
     // App lock: cover everything until the student unlocks.
     if (vm.locked && vm.screen != Screen.LOADING && vm.screen != Screen.ERROR && vm.profile != null) {
         LockScreen(message = vm.lockMessage, onUnlock = { authenticate { vm.unlock() } })
         return
     }
 
-    BackHandler(enabled = vm.screen !in listOf(Screen.HOME, Screen.WELCOME, Screen.LOADING, Screen.ERROR)) { vm.back() }
+    BackHandler(enabled = vm.screen !in listOf(Screen.HOME, Screen.WELCOME, Screen.LOADING, Screen.ERROR)) {
+        if (vm.screen == Screen.ABOUT) vm.go(lastTab) else vm.back()
+    }
 
     val isTab = vm.screen in tabs.map { it.screen }
-    if (isTab) {
+    if (isTab || vm.screen == Screen.ABOUT) {
         Scaffold(
             containerColor = MaterialTheme.colorScheme.background,
+            topBar = {
+                MainTopBar(
+                    title = titleFor(vm.screen),
+                    onBack = if (vm.screen == Screen.ABOUT) ({ vm.go(lastTab) }) else null,
+                    lockEnabled = vm.lockEnabled,
+                    onLockNow = vm::lockIfEnabled,
+                    onNewCheckIn = vm::startCheckIn,
+                    onLogMood = { vm.go(Screen.INSIGHTS) },
+                    onSettings = { vm.go(Screen.PROFILE) },
+                    onSupport = { showSupport = true },
+                    onAbout = { vm.go(Screen.ABOUT) },
+                )
+            },
             bottomBar = {
-                NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
+                if (isTab) NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
                     tabs.forEach { tab ->
                         NavigationBarItem(
                             selected = vm.screen == tab.screen,

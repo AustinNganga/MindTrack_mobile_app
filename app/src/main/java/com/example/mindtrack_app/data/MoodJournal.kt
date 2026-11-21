@@ -23,7 +23,7 @@ object Moods {
 
 /**
  * MindTrack's on-device SQLite database (Android's built-in SQLite, no extra library).
- * Version 1 has one table; add new tables or columns in [onUpgrade] by bumping DB_VERSION.
+ * Version 1: mood_entries. Version 2 adds screen_time_daily (see [onUpgrade] for the migration).
  */
 class MindTrackDatabase(context: Context) :
     SQLiteOpenHelper(context.applicationContext, DB_NAME, null, DB_VERSION) {
@@ -39,15 +39,31 @@ class MindTrackDatabase(context: Context) :
             )
             """.trimIndent(),
         )
+        createScreenTimeTable(db)
     }
 
+    /** Migrations: existing users keep their moods and gain the new table. */
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        // Future schema changes go here, e.g. if (oldVersion < 2) db.execSQL("ALTER TABLE ...")
+        if (oldVersion < 2) createScreenTimeTable(db)
+    }
+
+    private fun createScreenTimeTable(db: SQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS $TABLE_SCREEN (
+                date       TEXT    PRIMARY KEY NOT NULL,              -- yyyy-MM-dd
+                total_ms   INTEGER NOT NULL CHECK (total_ms >= 0),     -- foreground time of user apps
+                unlocks    INTEGER,                                    -- null on Android 8 and older
+                updated_at INTEGER NOT NULL
+            )
+            """.trimIndent(),
+        )
     }
 
     companion object {
         const val DB_NAME = "mindtrack.db"
-        const val DB_VERSION = 1
+        const val DB_VERSION = 2
+        const val TABLE_SCREEN = "screen_time_daily"
         const val TABLE_MOOD = "mood_entries"
         const val COL_DATE = "date"
         const val COL_MOOD = "mood"
@@ -95,6 +111,7 @@ class MoodRepository(context: Context) {
     companion object {
         private fun fmt() = SimpleDateFormat("yyyy-MM-dd", Locale.US)
         fun today(): String = fmt().format(Date())
+        fun dateOf(millis: Long): String = fmt().format(Date(millis))
 
         /** Dates (yyyy-MM-dd) of the last [days] days, oldest first, ending today. */
         fun lastDays(days: Int): List<String> {

@@ -185,7 +185,6 @@ fun HistoryScreen(checkIns: List<CheckIn>, threshold: Double, contentPadding: Pa
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item {
-            Text("History", style = MaterialTheme.typography.headlineMedium)
             Text("${checkIns.size} check-in${if (checkIns.size == 1) "" else "s"}", style = MaterialTheme.typography.bodyLarge, color = cs.onSurfaceVariant)
         }
         if (checkIns.size >= 2) item { TrendCard(checkIns, threshold) }

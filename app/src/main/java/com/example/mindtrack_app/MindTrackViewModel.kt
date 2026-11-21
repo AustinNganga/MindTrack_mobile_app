@@ -17,6 +17,8 @@ import com.example.mindtrack_app.data.MoodEntry
 import com.example.mindtrack_app.data.MoodRepository
 import com.example.mindtrack_app.data.ScreenTimeReader
 import com.example.mindtrack_app.data.ScreenTimeSummary
+import com.example.mindtrack_app.data.DailyScreenTime
+import com.example.mindtrack_app.data.ScreenTimeRepository
 import com.example.mindtrack_app.data.Profile
 import com.example.mindtrack_app.data.Question
 import com.example.mindtrack_app.data.QuestionBank
@@ -46,6 +48,7 @@ class MindTrackViewModel(app: Application) : AndroidViewModel(app) {
     private val repository: MindTrackRepository = local
     private val cloud = CloudBackup()
     private val moodRepo = MoodRepository(app)
+    private val screenTimeRepo = ScreenTimeRepository(app)
     private val screenTimeReader = ScreenTimeReader(app)
     private val settings = AppSettings(app)
     private var model: MindTrackModel? = null
@@ -79,6 +82,9 @@ class MindTrackViewModel(app: Application) : AndroidViewModel(app) {
     var screenTime by mutableStateOf<ScreenTimeSummary?>(null)
         private set
     var screenTimeLoading by mutableStateOf(false)
+        private set
+    /** Saved daily screen time for the last 14 days (oldest first), for the mood vs screen-time chart. */
+    var screenTimeHistory by mutableStateOf<List<DailyScreenTime>>(emptyList())
         private set
 
     // ---------- app lock state ----------
@@ -147,6 +153,7 @@ class MindTrackViewModel(app: Application) : AndroidViewModel(app) {
                 checkIns = repository.getCheckIns()
                 cloudEmail = cloud.signedInEmail
                 moods = moodRepo.recent()
+                screenTimeHistory = runCatching { screenTimeRepo.lastDays(14) }.getOrDefault(emptyList())
                 refreshScreenTime()
                 screen = if (profile == null) Screen.WELCOME else Screen.HOME
                 if (profile == null) locked = false
@@ -203,6 +210,7 @@ class MindTrackViewModel(app: Application) : AndroidViewModel(app) {
             }
             repository.deleteAll()
             moodRepo.deleteAll()
+            screenTimeRepo.deleteAll()
             Reminders.cancelAll(getApplication<Application>())
             settings.clear()
             lockEnabled = false; locked = false
@@ -210,6 +218,7 @@ class MindTrackViewModel(app: Application) : AndroidViewModel(app) {
             reminderHour = settings.reminderHour; reminderMinute = settings.reminderMinute
             checkInIntervalDays = settings.checkInIntervalDays
             moods = emptyList()
+            screenTimeHistory = emptyList()
             profile = null
             checkIns = emptyList()
             answers.clear()
@@ -296,6 +305,11 @@ class MindTrackViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch { moodRepo.save(entry) }
     }
 
+    /** Re-reads moods from the database (a mood may have been logged from a notification). */
+    fun reloadMoods() {
+        viewModelScope.launch { moods = moodRepo.recent() }
+    }
+
     // ---------- screen time ----------
 
     fun screenTimePermissionIntent() = screenTimeReader.permissionIntent()
@@ -306,7 +320,15 @@ class MindTrackViewModel(app: Application) : AndroidViewModel(app) {
         if (!screenTimeAllowed || screenTimeLoading) return
         screenTimeLoading = true
         viewModelScope.launch {
-            screenTime = runCatching { screenTimeReader.summary() }.getOrNull()
+            val summary = runCatching { screenTimeReader.summary() }.getOrNull()
+            screenTime = summary
+            if (summary != null) {
+                // Save each day to the database, then read back 14 days for the chart.
+                runCatching {
+                    screenTimeRepo.save(summary.week.map { DailyScreenTime(MoodRepository.dateOf(it.dayStart), it.totalMillis, it.unlocks) })
+                    screenTimeHistory = screenTimeRepo.lastDays(14)
+                }
+            }
             screenTimeLoading = false
         }
     }

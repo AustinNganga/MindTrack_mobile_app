@@ -25,6 +25,7 @@ import com.example.mindtrack_app.R
 import com.example.mindtrack_app.data.AppSettings
 import com.example.mindtrack_app.data.LocalRepository
 import com.example.mindtrack_app.data.MoodRepository
+import com.example.mindtrack_app.data.Moods
 import java.util.Calendar
 import java.util.concurrent.TimeUnit
 
@@ -107,7 +108,7 @@ object Reminders {
     }
 
     @SuppressLint("MissingPermission") // permission is checked in canPostNotifications()
-    internal fun show(context: Context, id: Int, title: String, text: String, open: String) {
+    internal fun show(context: Context, id: Int, title: String, text: String, open: String, moodButtons: Boolean = false) {
         if (!canPostNotifications(context)) return
         createChannel(context)
         val intent = Intent(context, MainActivity::class.java).apply {
@@ -117,7 +118,7 @@ object Reminders {
         val pending = PendingIntent.getActivity(
             context, id, intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
-        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+        val builder = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_mindtrack)
             .setContentTitle(title)
             .setContentText(text)
@@ -125,8 +126,51 @@ object Reminders {
             .setContentIntent(pending)
             .setAutoCancel(true)
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+        // One-tap mood buttons (Android shows at most 3 buttons on a notification).
+        if (moodButtons) {
+            QUICK_MOODS.forEach { mood ->
+                builder.addAction(0, "${Moods.face(mood)} ${Moods.label(mood)}", moodPendingIntent(context, mood))
+            }
+        }
+        NotificationManagerCompat.from(context).notify(id, builder.build())
+    }
+
+    /** Moods offered on the notification: Low, Okay, Good (2, 3, 4 on the 1–5 scale). */
+    private val QUICK_MOODS = listOf(2, 3, 4)
+    const val MOOD_NOTIFICATION_ID = 1001
+
+    private fun moodPendingIntent(context: Context, mood: Int): PendingIntent {
+        val intent = Intent(context, MoodActionReceiver::class.java).apply {
+            action = MoodActionReceiver.ACTION_LOG_MOOD
+            putExtra(MoodActionReceiver.EXTRA_MOOD, mood)
+        }
+        // A different request code per mood, so each button keeps its own extra.
+        return PendingIntent.getBroadcast(
+            context, 2000 + mood, intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
+    }
+
+    /** Replaces the mood reminder with a short "saved" confirmation that disappears by itself. */
+    @SuppressLint("MissingPermission")
+    internal fun showMoodSaved(context: Context, moodText: String) {
+        if (!canPostNotifications(context)) return
+        val intent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            putExtra(EXTRA_OPEN, OPEN_MOOD)
+        }
+        val pending = PendingIntent.getActivity(
+            context, MOOD_NOTIFICATION_ID, intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
+        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_stat_mindtrack)
+            .setContentTitle("Mood saved: $moodText")
+            .setContentText("Thanks! Tap to add a note or see your week.")
+            .setContentIntent(pending)
+            .setAutoCancel(true)
+            .setSilent(true)
+            .setTimeoutAfter(8_000) // disappears after 8 seconds
             .build()
-        NotificationManagerCompat.from(context).notify(id, notification)
+        NotificationManagerCompat.from(context).notify(MOOD_NOTIFICATION_ID, notification)
     }
 }
 
@@ -143,8 +187,9 @@ class ReminderWorker(appContext: Context, params: WorkerParameters) : CoroutineW
                 val loggedToday = MoodRepository(ctx).recent(1).firstOrNull()?.date == MoodRepository.today()
                 if (force || !loggedToday) {
                     Reminders.show(
-                        ctx, 1001, "How are you feeling today?",
-                        "Take two seconds to log your mood in MindTrack.", Reminders.OPEN_MOOD,
+                        ctx, Reminders.MOOD_NOTIFICATION_ID, "How are you feeling today?",
+                        "Tap a mood below to log it, or open MindTrack to add a note.", Reminders.OPEN_MOOD,
+                        moodButtons = true,
                     )
                 }
             }

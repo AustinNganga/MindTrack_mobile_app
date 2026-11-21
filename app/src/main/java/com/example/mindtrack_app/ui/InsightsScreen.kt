@@ -62,7 +62,6 @@ fun InsightsScreen(vm: MindTrackViewModel, contentPadding: PaddingValues) {
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(contentPadding).padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        Text("Insights", style = MaterialTheme.typography.headlineMedium)
         Text(
             "Your daily mood and how you actually use your phone. Everything here stays on this phone.",
             style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -70,6 +69,7 @@ fun InsightsScreen(vm: MindTrackViewModel, contentPadding: PaddingValues) {
         MoodCard(vm)
         MoodHistoryCard(vm.moods)
         ScreenTimeCard(vm)
+        if (vm.screenTimeAllowed) MoodVsScreenCard(vm.moods, vm.screenTimeHistory)
     }
 }
 
