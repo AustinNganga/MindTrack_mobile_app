@@ -47,6 +47,19 @@
         <receiver
             android:name=".reminders.MoodActionReceiver"
             android:exported="false" />
+
+        <!-- Home-screen widget (must be exported so the launcher can host it). -->
+        <receiver
+            android:name=".widget.MoodWidget"
+            android:exported="true"
+            android:label="@string/widget_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/mindtrack_widget_info" />
+        </receiver>
     </application>
 
 </manifest>

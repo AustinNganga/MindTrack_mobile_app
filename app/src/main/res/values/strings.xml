@@ -1,3 +1,5 @@
 <resources>
     <string name="app_name">MindTrack</string>
+    <string name="widget_label">MindTrack mood</string>
+    <string name="widget_description">Log today\'s mood in one tap and see your streak.</string>
 </resources>

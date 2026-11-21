@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Dark window background in dark mode, so there is no white flash when the app opens. -->
+    <style name="Theme.Mindtrack_app" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">#FF111118</item>
+    </style>
+</resources>

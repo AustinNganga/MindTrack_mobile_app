@@ -113,6 +113,16 @@ class MoodRepository(context: Context) {
         fun today(): String = fmt().format(Date())
         fun dateOf(millis: Long): String = fmt().format(Date(millis))
 
+        /** Days in a row with a mood, ending today (or yesterday, so a streak isn't "lost" before today's log). */
+        fun streak(dates: Collection<String>): Int {
+            val set = dates.toHashSet()
+            val days = lastDays(120).reversed()
+            val start = if (days.first() in set) 0 else 1
+            var n = 0
+            for (i in start until days.size) { if (days[i] in set) n++ else break }
+            return n
+        }
+
         /** Dates (yyyy-MM-dd) of the last [days] days, oldest first, ending today. */
         fun lastDays(days: Int): List<String> {
             val cal = Calendar.getInstance()

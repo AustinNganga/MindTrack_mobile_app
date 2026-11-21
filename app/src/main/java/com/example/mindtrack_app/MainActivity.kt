@@ -1,5 +1,6 @@
 package com.example.mindtrack_app
 
+import com.example.mindtrack_app.ui.TourScreen
 import android.content.Intent
 import android.os.Bundle
 import android.os.SystemClock
@@ -207,6 +208,12 @@ private fun MindTrackApp(
         return
     }
 
+    // First-run tutorial (also replayable from the menu).
+    if (vm.showTour && vm.screen == Screen.HOME) {
+        TourScreen(onDone = vm::finishTour)
+        return
+    }
+
     BackHandler(enabled = vm.screen !in listOf(Screen.HOME, Screen.WELCOME, Screen.LOADING, Screen.ERROR)) {
         if (vm.screen == Screen.ABOUT) vm.go(lastTab) else vm.back()
     }
@@ -227,6 +234,7 @@ private fun MindTrackApp(
                     onSupport = { showSupport = true },
                     onAbout = { vm.go(Screen.ABOUT) },
                     onBreathe = { vm.showBreather = true },
+                    onTour = { vm.go(Screen.HOME); vm.showTour = true },
                 )
             },
             bottomBar = {

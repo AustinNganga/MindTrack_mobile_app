@@ -1,5 +1,9 @@
 package com.example.mindtrack_app.ui
 
+import androidx.compose.ui.graphics.luminance
+import com.example.mindtrack_app.ui.theme.Indigo30
+import com.example.mindtrack_app.ui.theme.Indigo40
+import com.example.mindtrack_app.ui.theme.Teal40
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.foundation.LocalIndication
@@ -72,7 +76,18 @@ import java.util.Locale
 // ---------- helpers ----------
 
 fun RiskLevel.color(): Color = if (this == RiskLevel.LOW) RiskLow else RiskElevated
-fun RiskLevel.container(): Color = if (this == RiskLevel.LOW) RiskLowContainer else RiskElevatedContainer
+/** Soft background for a risk level; a translucent tint in dark mode instead of a bright pastel. */
+@Composable
+fun RiskLevel.container(): Color =
+    if (isDarkUi()) color().copy(alpha = 0.22f)
+    else if (this == RiskLevel.LOW) RiskLowContainer else RiskElevatedContainer
+
+/** True when the app is drawing its dark colour scheme. */
+@Composable
+fun isDarkUi(): Boolean = MaterialTheme.colorScheme.background.luminance() < 0.5f
+
+/** Text colour for labels on the white buttons that sit on the gradient (readable in both themes). */
+val HeroInk = Indigo40
 
 fun formatDate(millis: Long, pattern: String = "EEE d MMM yyyy, HH:mm"): String =
     SimpleDateFormat(pattern, Locale.getDefault()).format(Date(millis))
@@ -89,9 +104,10 @@ fun dial(context: Context, number: String) {
     } catch (_: ActivityNotFoundException) { /* no dialer (e.g. some tablets) */ }
 }
 
+/** Brand gradient. Fixed deep colours, so white text on it stays readable in light and dark mode. */
 val HeroBrush: Brush
     @Composable get() = Brush.linearGradient(
-        listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.secondary),
+        if (isDarkUi()) listOf(Indigo30, Color(0xFF00695C)) else listOf(Indigo40, Teal40),
     )
 
 // ---------- building blocks ----------

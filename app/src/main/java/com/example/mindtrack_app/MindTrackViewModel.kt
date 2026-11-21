@@ -1,5 +1,6 @@
 package com.example.mindtrack_app
 
+import com.example.mindtrack_app.widget.MoodWidget
 import android.app.Application
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -98,16 +99,16 @@ class MindTrackViewModel(app: Application) : AndroidViewModel(app) {
     /** True while the 1-minute breathing exercise is open. */
     var showBreather by mutableStateOf(false)
 
-    /** Days in a row with a mood logged, ending today (or yesterday, so the streak isn't "lost" before today's log). */
-    val moodStreak: Int
-        get() {
-            val dates = moods.map { it.date }.toHashSet()
-            val days = MoodRepository.lastDays(120).reversed()
-            val start = if (days.first() in dates) 0 else 1
-            var n = 0
-            for (i in start until days.size) { if (days[i] in dates) n++ else break }
-            return n
-        }
+    /** Days in a row with a mood logged (see MoodRepository.streak). */
+    val moodStreak: Int get() = MoodRepository.streak(moods.map { it.date })
+
+    /** True while the first-run tutorial is showing. */
+    var showTour by mutableStateOf(!settings.tourSeen)
+
+    fun finishTour() {
+        settings.tourSeen = true
+        showTour = false
+    }
 
     // ---------- reminder settings state ----------
     var moodReminderOn by mutableStateOf(settings.moodReminder)
@@ -233,6 +234,8 @@ class MindTrackViewModel(app: Application) : AndroidViewModel(app) {
             checkInIntervalDays = settings.checkInIntervalDays
             moods = emptyList()
             screenTimeHistory = emptyList()
+            showTour = true
+            MoodWidget.updateAll(getApplication<Application>())
             profile = null
             checkIns = emptyList()
             answers.clear()
@@ -316,7 +319,10 @@ class MindTrackViewModel(app: Application) : AndroidViewModel(app) {
     fun logMood(mood: Int, note: String = todayMood?.note.orEmpty()) {
         val entry = MoodEntry(MoodRepository.today(), mood, note, System.currentTimeMillis())
         moods = listOf(entry) + moods.filterNot { it.date == entry.date }
-        viewModelScope.launch { moodRepo.save(entry) }
+        viewModelScope.launch {
+            moodRepo.save(entry)
+            MoodWidget.refresh(getApplication<Application>()) // keep the home-screen widget in sync
+        }
     }
 
     /** Re-reads moods from the database (a mood may have been logged from a notification). */
@@ -352,6 +358,7 @@ class MindTrackViewModel(app: Application) : AndroidViewModel(app) {
     fun changeAppLock(on: Boolean) {
         settings.lockEnabled = on
         lockEnabled = on
+        MoodWidget.updateAll(getApplication<Application>()) // widget hides mood details while locked
         lockMessage = null
     }
 

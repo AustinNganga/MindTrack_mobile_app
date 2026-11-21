@@ -136,7 +136,7 @@ fun HomeScreen(
                 Spacer(Modifier.height(20.dp))
                 Surface(onClick = onStart, shape = MaterialTheme.shapes.large, color = Color.White, modifier = Modifier.fillMaxWidth().height(54.dp)) {
                     Box(contentAlignment = Alignment.Center) {
-                        Text(if (latest == null) "Start my first check-in" else "Start a new check-in", style = MaterialTheme.typography.labelLarge, color = cs.primary)
+                        Text(if (latest == null) "Start my first check-in" else "Start a new check-in", style = MaterialTheme.typography.labelLarge, color = HeroInk)
                     }
                 }
             }
@@ -278,6 +278,7 @@ private fun TrendCard(checkIns: List<CheckIn>, threshold: Double) {
             Spacer(Modifier.height(16.dp))
             val line = cs.primary
             val grid = cs.outlineVariant
+            val ring = cs.surface
             Canvas(Modifier.fillMaxWidth().height(120.dp)) {
                 val stepX = if (points.size > 1) size.width / (points.size - 1) else 0f
                 fun y(v: Double) = size.height * (1f - v.coerceIn(0.0, 1.0).toFloat())
@@ -287,7 +288,7 @@ private fun TrendCard(checkIns: List<CheckIn>, threshold: Double) {
                 }
                 points.forEachIndexed { i, c ->
                     val color = if (c.riskScore >= threshold) RiskElevated else RiskLow
-                    drawCircle(Color.White, radius = 11f, center = Offset(i * stepX, y(c.riskScore)))
+                    drawCircle(ring, radius = 11f, center = Offset(i * stepX, y(c.riskScore)))
                     drawCircle(color, radius = 8f, center = Offset(i * stepX, y(c.riskScore)))
                 }
             }

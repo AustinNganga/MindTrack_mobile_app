@@ -33,6 +33,11 @@ class AppSettings(context: Context) {
         get() = prefs.getInt(KEY_INTERVAL, 7)
         set(v) = prefs.edit { putInt(KEY_INTERVAL, v) }
 
+    /** True once the first-run tutorial has been seen or skipped. */
+    var tourSeen: Boolean
+        get() = prefs.getBoolean(KEY_TOUR, false)
+        set(v) = prefs.edit { putBoolean(KEY_TOUR, v) }
+
     fun clear() = prefs.edit { clear() }
 
     private companion object {
@@ -42,5 +47,6 @@ class AppSettings(context: Context) {
         const val KEY_HOUR = "reminder_hour"
         const val KEY_MINUTE = "reminder_minute"
         const val KEY_INTERVAL = "checkin_interval_days"
+        const val KEY_TOUR = "tour_seen"
     }
 }

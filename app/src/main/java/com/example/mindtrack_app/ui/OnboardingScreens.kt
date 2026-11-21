@@ -69,7 +69,7 @@ fun WelcomeScreen(onStart: () -> Unit, onRestore: () -> Unit) {
             Spacer(Modifier.weight(1.2f))
             Surface(onClick = onStart, shape = MaterialTheme.shapes.large, color = Color.White, modifier = Modifier.fillMaxWidth().height(58.dp)) {
                 Box(contentAlignment = Alignment.Center) {
-                    Text("Get started", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                    Text("Get started", style = MaterialTheme.typography.labelLarge, color = HeroInk)
                 }
             }
             TextButton(onClick = onRestore, modifier = Modifier.padding(top = 8.dp)) {

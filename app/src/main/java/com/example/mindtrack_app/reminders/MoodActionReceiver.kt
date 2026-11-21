@@ -1,5 +1,7 @@
 package com.example.mindtrack_app.reminders
 
+import androidx.core.app.NotificationManagerCompat
+import com.example.mindtrack_app.widget.MoodWidget
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -27,7 +29,13 @@ class MoodActionReceiver : BroadcastReceiver() {
                 // Keep any note already written today; only the mood changes.
                 val note = repo.recent(1).firstOrNull()?.takeIf { it.date == today }?.note.orEmpty()
                 repo.save(MoodEntry(today, mood, note, System.currentTimeMillis()))
-                Reminders.showMoodSaved(app, "${Moods.face(mood)} ${Moods.label(mood)}")
+                if (intent.getBooleanExtra(EXTRA_FROM_WIDGET, false)) {
+                    // From the widget: the widget itself shows the result; clear any pending mood reminder.
+                    NotificationManagerCompat.from(app).cancel(Reminders.MOOD_NOTIFICATION_ID)
+                } else {
+                    Reminders.showMoodSaved(app, "${Moods.face(mood)} ${Moods.label(mood)}")
+                }
+                runCatching { MoodWidget.refresh(app) }
             } finally {
                 pending.finish()
             }
@@ -37,5 +45,6 @@ class MoodActionReceiver : BroadcastReceiver() {
     companion object {
         const val ACTION_LOG_MOOD = "com.example.mindtrack_app.LOG_MOOD"
         const val EXTRA_MOOD = "mood"
+        const val EXTRA_FROM_WIDGET = "from_widget"
     }
 }

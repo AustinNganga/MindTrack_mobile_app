@@ -76,7 +76,7 @@ fun LockScreen(message: String?, onUnlock: () -> Unit) {
             Spacer(Modifier.weight(1.2f))
             Surface(onClick = onUnlock, shape = MaterialTheme.shapes.large, color = Color.White, modifier = Modifier.fillMaxWidth().height(58.dp)) {
                 Box(contentAlignment = Alignment.Center) {
-                    Text("Unlock", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                    Text("Unlock", style = MaterialTheme.typography.labelLarge, color = HeroInk)
                 }
             }
         }
