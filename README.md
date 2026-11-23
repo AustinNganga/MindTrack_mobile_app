@@ -1,8 +1,8 @@
-# MindTrack 🧠📱
+# MindTrack 
 
 **MindTrack** is an Android app that helps university students notice how their **phone habits** and **mood** are connected. It combines a short questionnaire scored by an **on-device AI model**, a daily mood journal, the phone's **real** screen-time data, and gentle tools that help students act on what they see.
 
-> ⚠️ **Not a medical device.** MindTrack is a student research prototype. It shows patterns, not causes, and its results are not a diagnosis.
+> Notice that this is **Not a medical device.** MindTrack is a student research prototype. It shows patterns, not causes, and its results are not a diagnosis.
 
 This repository is the **mobile app** (Mobile Applications unit). The machine-learning model was trained separately (Artificial Intelligence unit) and is shipped inside the app as `app/src/main/assets/mindtrack_model.json`.
 
@@ -34,48 +34,48 @@ This repository is the **mobile app** (Mobile Applications unit). The machine-le
 - **Input validation:** age can be typed or set with − / +. Empty, non-numeric or out-of-range values (outside the 16–60 ages in the study) show a clear message, and **Next** stays disabled. The model also re-checks every input (missing, not a number, or an answer code that doesn't exist) and refuses to predict with bad data.
 - The model runs **fully offline**. Questionnaire answers never leave the phone.
 
-### 😊 Daily mood journal
+### Daily mood journal
 - **One-tap mood logging** with five faces (Very low to Great), plus an optional note.
 - Stored in an on-device **SQLite database**, one entry per day (logging again updates that day).
 - 14-day mood calendar on Insights.
-- **🔥 Mood streak** on Home.
+- ** Mood streak** on Home.
 - **Playful feedback:** the face bounces, sparkles burst on good days, and a short, kind message appears, with a breather offered on harder days.
 
-### 📊 Real screen-time insights
+###  Real screen-time insights
 - Uses Android's **UsageStatsManager** to show **actual** screen time, phone unlocks and most-used apps (the student grants "Usage access").
 - 7-day bar chart; daily totals are saved to the database so history builds up over time.
 - **Mood vs screen time** chart (14 days), with a plain-language summary of the student's own pattern. With 7+ days it adds a **correlation (Pearson r)**, and always notes that a pattern is not proof of cause.
 
-### 🎯 Screen-time goals and nudges
+###  Screen-time goals and nudges
 - **Daily screen-time goal** with an animated **progress ring** on Home (teal, then amber from 80%, then red when passed).
 - **Suggested goal:** 15% under the student's own 7-day average.
 - **Goal nudges** at 80% and 100%, at most once each per day.
 - **Bedtime wind-down:** a nudge if the phone is in real use after a chosen bedtime.
 - **Weekly wins**, for example "🎉 Goal met on 5 of the last 7 days".
 
-### 🔔 Reminders (WorkManager)
+###  Reminders (WorkManager)
 - **Daily mood reminder**, skipped automatically if the mood is already logged.
 - **Check-in reminder**, weekly or every 2 weeks, skipped if a check-in was done recently.
 - **Log your mood from the notification**, with 🙁 😐 🙂 buttons and no need to open the app.
 - Tapping a notification opens the right screen (deep links).
 - A "Send a test reminder now" button for demos.
 
-### 🏠 Home-screen widget
+###  Home-screen widget
 - Shows the streak and today's mood, with **one-tap mood buttons**.
 - Stays in sync with the app both ways.
 - Hides which mood was logged while App lock is on.
 
-### 🔒 App lock and privacy
+###  App lock and privacy
 - An optional **App lock** using the phone's PIN, pattern, password, fingerprint or face (BiometricPrompt).
 - Re-locks after 30 seconds in the background, and there is a **Lock now** button in the top bar.
 - While locked, the app is **hidden in Recents and screenshots are blocked** (FLAG_SECURE).
 
-### 💛 Wellbeing and safety
+###  Wellbeing and safety
 - **Safety net:** after **three low moods in a row** or a recent **Elevated** result, Home shows a caring card with one-tap calls to Kenya Red Cross (1199) and Befrienders Kenya, and the breather. "Not now" hides it for 3 days.
 - **1-minute breather:** a guided breathing exercise (4 s in, 2 s hold, 6 s out) with an animated circle and gentle vibrations.
 - **Get support now** is always available in the ⋮ menu.
 
-### 📄 Shareable summary for a counsellor (PDF)
+###  Shareable summary for a counsellor (PDF)
 - Creates a **PDF of the last 30 days** on the phone, containing:
   - mood chart and screen-time chart;
   - check-in results;
@@ -85,12 +85,12 @@ This repository is the **mobile app** (Mobile Applications unit). The machine-le
 - **Share** (email, WhatsApp, Drive…) through a secure FileProvider, or **save to Downloads**.
 - Mood notes are only included if the student ticks the box. Questionnaire answers are never included.
 
-### ☁️ Cloud backup (Firebase)
+###  Cloud backup (Firebase)
 - Optional **email and password account** (Firebase Authentication).
 - Check-in results are backed up to **Cloud Firestore** and can be **restored on a new phone** ("I already have a backup").
 - **Data minimisation:** only results are uploaded, never the questionnaire answers.
 
-### ✨ Design and usability
+### Design and usability
 - **Material 3** design with Jetpack Compose, plus full **dark mode** support.
 - **Animations:**
   - cards rise in one after another;
