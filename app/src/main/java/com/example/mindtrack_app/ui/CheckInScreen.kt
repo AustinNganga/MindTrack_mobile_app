@@ -1,5 +1,8 @@
 package com.example.mindtrack_app.ui
 
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.spring
 import androidx.compose.ui.graphics.graphicsLayer
@@ -191,30 +194,67 @@ private fun QuestionPage(vm: MindTrackViewModel, step: Step.Ask) {
     }
 }
 
+/**
+ * Number answer (e.g. age). The student can type it or use − / +. Typed input is checked as they type:
+ * empty, not a whole number, or outside the range the model was trained on are all rejected with a
+ * clear message, and "Next" stays disabled until the value is valid.
+ */
 @Composable
 private fun NumberPicker(vm: MindTrackViewModel, q: NumberQuestion) {
     val cs = MaterialTheme.colorScheme
-    val value = vm.answers[q.id] ?: q.default
+    val saved = vm.answers[q.id] ?: q.default
     LaunchedEffect(q.id) { if (q.id !in vm.answers) vm.answer(q.id, q.default) }
+    var text by rememberSaveable(q.id) { mutableStateOf(saved.toString()) }
+
+    val parsed = text.trim().toIntOrNull()
+    val error = when {
+        text.isBlank() -> "Please enter a number."
+        parsed == null -> "Please use digits only (for example 21)."
+        parsed < q.min -> "That's below ${q.min}. MindTrack is designed for students aged ${q.min} to ${q.max}, the ages in the study it learned from."
+        parsed > q.max -> "That's above ${q.max}. MindTrack is designed for students aged ${q.min} to ${q.max}, the ages in the study it learned from."
+        else -> null
+    }
+
+    fun setValue(v: Int) {
+        val clamped = v.coerceIn(q.min, q.max)
+        text = clamped.toString()
+        vm.answer(q.id, clamped)
+    }
+
     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
         AppCard {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center, modifier = Modifier.fillMaxWidth()) {
-                FilledTonalIconButton(onClick = { vm.answer(q.id, (value - 1).coerceAtLeast(q.min)) }, modifier = Modifier.size(56.dp)) {
+                FilledTonalIconButton(onClick = { setValue((parsed ?: saved) - 1) }, modifier = Modifier.size(56.dp)) {
                     Text("−", style = MaterialTheme.typography.headlineMedium)
                 }
-                Column(Modifier.width(140.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("$value", style = MaterialTheme.typography.displaySmall, color = cs.primary)
-                    Text(q.unit, style = MaterialTheme.typography.labelMedium, color = cs.onSurfaceVariant)
-                }
-                FilledTonalIconButton(onClick = { vm.answer(q.id, (value + 1).coerceAtMost(q.max)) }, modifier = Modifier.size(56.dp)) {
+                OutlinedTextField(
+                    value = text,
+                    onValueChange = { new ->
+                        text = new.take(4)
+                        new.trim().toIntOrNull()?.takeIf { it in q.min..q.max }?.let { vm.answer(q.id, it) }
+                    },
+                    singleLine = true,
+                    isError = error != null,
+                    textStyle = MaterialTheme.typography.headlineMedium.copy(textAlign = TextAlign.Center, color = cs.primary),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    label = { Text(q.unit) },
+                    shape = MaterialTheme.shapes.medium,
+                    modifier = Modifier.width(140.dp).padding(horizontal = 10.dp),
+                )
+                FilledTonalIconButton(onClick = { setValue((parsed ?: saved) + 1) }, modifier = Modifier.size(56.dp)) {
                     Text("+", style = MaterialTheme.typography.headlineMedium)
                 }
             }
         }
         Spacer(Modifier.height(8.dp))
-        Text("Range ${q.min}–${q.max}", style = MaterialTheme.typography.bodyMedium, color = cs.onSurfaceVariant)
+        Text(
+            error ?: "Range ${q.min}–${q.max}",
+            style = MaterialTheme.typography.bodyMedium,
+            color = if (error != null) cs.error else cs.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+        )
         Spacer(Modifier.height(24.dp))
-        PrimaryButton("Next", onClick = { vm.nextStep() })
+        PrimaryButton("Next", onClick = { vm.nextStep() }, enabled = error == null)
     }
 }
 
@@ -243,6 +283,10 @@ private fun FinishPage(vm: MindTrackViewModel) {
             style = MaterialTheme.typography.bodyLarge, color = cs.onSurfaceVariant, textAlign = TextAlign.Center,
         )
         Spacer(Modifier.weight(1.3f))
+        vm.checkInError?.let {
+            Text(it, style = MaterialTheme.typography.bodyMedium, color = cs.error, textAlign = TextAlign.Center)
+            Spacer(Modifier.height(12.dp))
+        }
         PrimaryButton(if (complete) "See my result" else "Answer the rest", onClick = { vm.submit() }, loading = vm.submitting)
     }
 }

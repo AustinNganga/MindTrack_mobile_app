@@ -1,5 +1,7 @@
 package com.example.mindtrack_app
 
+import com.example.mindtrack_app.ui.WhyThisResultCard
+import com.example.mindtrack_app.ui.WhatIfCard
 import com.example.mindtrack_app.ui.ShareSummaryDialog
 import com.example.mindtrack_app.ui.ShareSummaryCard
 import com.example.mindtrack_app.ui.SafetyNetCard
@@ -324,7 +326,13 @@ private fun MindTrackApp(
         Screen.CONSENT -> ConsentScreen(onAgree = vm::finishOnboarding, onBack = { vm.back() })
         Screen.CHECK_IN -> CheckInScreen(vm)
         Screen.RESULT -> vm.viewing?.let { c ->
-            ResultScreen(c, vm.threshold, vm.viewingIsNew, onDone = { vm.back() })
+            ResultScreen(
+                c, vm.threshold, vm.viewingIsNew, onDone = { vm.back() },
+                explainContent = {
+                    WhyThisResultCard(vm, c)
+                    WhatIfCard(vm, c)
+                },
+            )
         }
         else -> Unit
     }

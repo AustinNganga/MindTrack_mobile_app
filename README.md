@@ -29,6 +29,9 @@ This repository is the **mobile app** (Mobile Applications unit). The machine-le
 - **On-device AI model:** a random forest of 300 decision trees, trained on survey data from **1,220 university students**, estimates whether the answers look more like students with a Beck Depression Inventory score of **11 or more**.
 - The **result screen** has an animated gauge showing a **Low** or **Elevated** indicator, the phone-dependence band and support lines.
 - **History and trend:** every check-in is saved, with a trend chart over time.
+- **Explainable AI, "Why this result?":** each prediction is split into how many points each answer added or removed (tree-path contributions, the idea behind tree SHAP). The app lists the answers that pushed the score up and down, with bars; "Show all 20 factors" lists every input. Starting point plus all contributions equals the prediction exactly.
+- **"What if…?" explorer:** change the most influential answers, or slide the phone-dependence score, and the gauge and score update instantly. The saved result never changes.
+- **Input validation:** age can be typed or set with − / +. Empty, non-numeric or out-of-range values (outside the 16–60 ages in the study) show a clear message, and **Next** stays disabled. The model also re-checks every input (missing, not a number, or an answer code that doesn't exist) and refuses to predict with bad data.
 - The model runs **fully offline**. Questionnaire answers never leave the phone.
 
 ### 😊 Daily mood journal
@@ -290,7 +293,11 @@ app/src/test/                              # unit tests (model parity check)
   gradlew.bat test      # Windows
   ```
 
-`ModelParityTest` checks that the Kotlin model gives the **same predictions as the original Python model** (to within 1e-9) on the test vectors in `app/src/test/resources/test_vectors.json`.
+- **`ModelParityTest`** checks that the Kotlin model gives the **same predictions as the original Python model** on the test vectors in `app/src/test/resources/test_vectors.json`.
+- **`ModelExplainTest`** checks that:
+  - the explanation adds up exactly to the prediction;
+  - every input has a readable label;
+  - invalid inputs are rejected (age 200, an answer code that doesn't exist, a missing or non-numeric input).
 
 ---
 

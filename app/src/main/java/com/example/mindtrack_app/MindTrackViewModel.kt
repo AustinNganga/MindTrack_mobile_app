@@ -1,5 +1,6 @@
 package com.example.mindtrack_app
 
+import com.example.mindtrack_app.model.InvalidInputException
 import com.example.mindtrack_app.goals.Goals
 import com.example.mindtrack_app.widget.MoodWidget
 import android.app.Application
@@ -96,6 +97,10 @@ class MindTrackViewModel(app: Application) : AndroidViewModel(app) {
     var locked by mutableStateOf(settings.lockEnabled)
         private set
     var lockMessage by mutableStateOf<String?>(null)
+
+    /** Shown on the last check-in page if the model rejected the answers (invalid input). */
+    var checkInError by mutableStateOf<String?>(null)
+        private set
 
     /** True while the "share a summary" (PDF) screen is open. */
     var showReport by mutableStateOf(false)
@@ -337,6 +342,7 @@ class MindTrackViewModel(app: Application) : AndroidViewModel(app) {
     // ---------- check-in ----------
     fun startCheckIn() {
         answers.clear()
+        checkInError = null
         stepIndex = 0
         submitting = false
         screen = Screen.CHECK_IN
@@ -366,9 +372,17 @@ class MindTrackViewModel(app: Application) : AndroidViewModel(app) {
         submitting = true
         viewModelScope.launch {
             val snapshot = answers.toMap()
-            val prediction = withContext(Dispatchers.Default) {
-                m.predict(QuestionBank.modelInputs(snapshot, m.features))
+            // The model validates every input (missing, non-numeric, out of range) before predicting.
+            val prediction = try {
+                withContext(Dispatchers.Default) { m.predict(QuestionBank.modelInputs(snapshot, m.features)) }
+            } catch (e: Exception) {
+                checkInError = if (e is InvalidInputException) {
+                    "Some answers couldn't be used: " + e.problems.joinToString("; ") + ". Please go back and check them."
+                } else "Something went wrong while scoring your answers. Please try again."
+                submitting = false
+                return@launch
             }
+            checkInError = null
             val checkIn = CheckIn(
                 id = UUID.randomUUID().toString(),
                 timestamp = System.currentTimeMillis(),
@@ -393,6 +407,29 @@ class MindTrackViewModel(app: Application) : AndroidViewModel(app) {
             submitting = false
             screen = Screen.RESULT
         }
+    }
+
+    // ---------- explainable AI ----------
+
+    /** The model inputs for a saved check-in, or null if its answers aren't on this phone (cloud-restored). */
+    fun inputsOf(c: CheckIn): Map<String, Double>? {
+        val m = model ?: return null
+        if (c.answers.isEmpty()) return null
+        return runCatching { QuestionBank.modelInputs(c.answers, m.features) }.getOrNull()
+    }
+
+    /** Which answers pushed this result up or down ("Why this result?"). */
+    fun explain(c: CheckIn): MindTrackModel.Explanation? {
+        val m = model ?: return null
+        val x = inputsOf(c) ?: return null
+        return runCatching { m.explain(x) }.getOrNull()
+    }
+
+    /** "What if…?": the score with some answers changed. Never changes the saved result. */
+    fun scoreWith(c: CheckIn, overrides: Map<String, Double>): Double? {
+        val m = model ?: return null
+        val x = inputsOf(c) ?: return null
+        return runCatching { m.predict(x + overrides).probability }.getOrNull()
     }
 
     fun openCheckIn(checkIn: CheckIn) {

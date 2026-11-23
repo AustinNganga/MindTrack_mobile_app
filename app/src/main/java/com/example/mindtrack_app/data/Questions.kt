@@ -154,6 +154,24 @@ object QuestionBank {
             else answers[f]?.toDouble() ?: error("No question answers model input '$f'")
         }
 
+    /** The multiple-choice question behind a model input, if there is one. */
+    fun choiceQuestion(feature: String): ChoiceQuestion? = all.firstOrNull { it.id == feature } as? ChoiceQuestion
+
+    /** Plain-language name of a model input (used by the "Why this result?" explanation). */
+    fun questionFor(feature: String): String =
+        if (feature == "TMD_Total") "Your phone-dependence score (from the 22 phone-habit answers)"
+        else all.firstOrNull { it.id == feature }?.prompt ?: feature
+
+    /** The student's answer to a model input, in words. */
+    fun answerText(feature: String, value: Double): String {
+        if (feature == "TMD_Total") return "${value.toInt()} out of 88 (${tmdBand(value.toInt()).lowercase()})"
+        return when (val q = all.firstOrNull { it.id == feature }) {
+            is ChoiceQuestion -> q.options.firstOrNull { it.code == value.toInt() }?.label ?: value.toInt().toString()
+            is NumberQuestion -> "${value.toInt()} ${q.unit}"
+            null -> value.toString()
+        }
+    }
+
     /** Model inputs that the question bank cannot provide (should be empty). */
     fun uncovered(features: List<String>): List<String> {
         val ids = all.map { it.id }.toSet()

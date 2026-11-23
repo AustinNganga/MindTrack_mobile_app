@@ -33,7 +33,13 @@ import com.example.mindtrack_app.data.QuestionBank
 import com.example.mindtrack_app.data.RiskLevel
 
 @Composable
-fun ResultScreen(checkIn: CheckIn, threshold: Double, isNew: Boolean, onDone: () -> Unit) {
+fun ResultScreen(
+    checkIn: CheckIn,
+    threshold: Double,
+    isNew: Boolean,
+    onDone: () -> Unit,
+    explainContent: @Composable () -> Unit = {},
+) {
     val cs = MaterialTheme.colorScheme
     val elevated = checkIn.level == RiskLevel.ELEVATED
     Column(Modifier.fillMaxSize().systemBarsPadding()) {
@@ -61,6 +67,9 @@ fun ResultScreen(checkIn: CheckIn, threshold: Double, isNew: Boolean, onDone: ()
                     Text(formatDate(checkIn.timestamp), style = MaterialTheme.typography.labelMedium, color = cs.onSurfaceVariant)
                 }
             }
+
+            // Explainable AI: why this result, and "what if" I answered differently
+            explainContent()
 
             if (elevated) SupportCard(prominent = true)
 
